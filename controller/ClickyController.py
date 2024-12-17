@@ -1,170 +1,112 @@
-import serial
-import time
 import customtkinter as ctk
+import serial
 import serial.tools.list_ports
 
-# Global variable for serial connection
-ser = None
+# Global variable to store the serial connection
+serial_connection = None
 
-# Functions to get available COM ports
-def get_com_ports():
-    ports = serial.tools.list_ports.comports()
-    return [port.device for port in ports]
-
-# Functions to control relays
-def SetRelayA(on_off):
-    if on_off and ser:
-        ser.write(("AON" + "\n").encode())
-    elif ser:
-        ser.write(("AOFF" + "\n").encode())
-
-def SetRelayB(on_off):
-    if on_off and ser:
-        ser.write(("BON" + "\n").encode())
-    elif ser:
-        ser.write(("BOFF" + "\n").encode())
-
-# Functions to handle button presses
-def relayA_on():
-    SetRelayA(True)
-
-def relayA_off():
-    SetRelayA(False)
-
-def relayB_on():
-    SetRelayB(True)
-
-def relayB_off():
-    SetRelayB(False)
-
-# Toggle connect and disconnect functionality
-def toggle_connection():
-    global ser
-    port = com_port_dropdown.get()
-
-    if ser is None:  # Connect
-        if port and port != "No COM ports found":
-            try:
-                ser = serial.Serial(port, 115200, timeout=1)
-                connect_button.configure(text="Disconnect", fg_color="#FF5722", hover_color="#d64b1f")
-                com_port_dropdown.configure(state="disabled")
-                print(f"Connected to {port}")
-            except serial.SerialException:
-                print(f"Failed to connect to {port}")
+# Function to send commands to the device
+def send_command(command):
+    global serial_connection
+    try:
+        if serial_connection and serial_connection.is_open:
+            serial_connection.write(command.encode())
+            print(f"Sent command: {command}")
         else:
-            print("No valid COM port selected.")
-    else:  # Disconnect
-        ser.close()
-        ser = None
-        connect_button.configure(text="Connect", fg_color="#4CAF50", hover_color="#45a63c")
-        com_port_dropdown.configure(state="normal")
-        print("Disconnected.")
+            print("Serial connection not established.")
+    except serial.SerialException as e:
+        print(f"Error communicating with device: {e}")
 
-# Create the customtkinter GUI
+# Function to turn Relay A ON
+def relay_a_on():
+    send_command("AON")
+
+# Function to turn Relay A OFF
+def relay_a_off():
+    send_command("AOFF")
+
+# Function to turn Relay B ON
+def relay_b_on():
+    send_command("BON")
+
+# Function to turn Relay B OFF
+def relay_b_off():
+    send_command("BOFF")
+
+# Function to toggle connection to the selected COM port
+def toggle_connection(port, button):
+    global serial_connection
+    try:
+        if serial_connection and serial_connection.is_open:
+            serial_connection.close()
+            button.configure(text="Connect", fg_color="#3a7ebf")
+            print("Disconnected.")
+        else:
+            serial_connection = serial.Serial(port, 9600, timeout=1)
+            button.configure(text="Disconnect", fg_color="#bf3a3a")
+            print(f"Connected to {port}")
+    except serial.SerialException as e:
+        print(f"Error toggling connection: {e}")
+
+# Set up the GUI
 def create_gui():
-    # Initialize the main window with customtkinter styling
-    window = ctk.CTk()
-    window.title("Clicky")
-    window.iconbitmap("circuit.ico")
-    window.attributes('-topmost', True)
-    window.geometry("400x350")
+    ctk.set_appearance_mode("System")  # Options: "System", "Dark", "Light"
+    ctk.set_default_color_theme("blue")  # Options: "blue", "green", "dark-blue"
 
-    # Configure appearance mode
-    ctk.set_appearance_mode("dark")  # You can choose between "dark" or "light"
-    ctk.set_default_color_theme("blue")  # You can customize the theme
+    root = ctk.CTk()
+    root.title("Relay Control")
 
-    # COM port dropdown
-    available_ports = get_com_ports()
-    if not available_ports:
-        available_ports = ["No COM ports found"]
+    # Set window size
+    root.geometry("400x400")
 
-    global com_port_dropdown
-    com_port_dropdown = ctk.CTkOptionMenu(
-        window,
-        values=available_ports,
-        width=200
-    )
-    com_port_dropdown.grid(row=0, column=0, padx=10, pady=10)
+    # Create a frame to organize content in a grid
+    top_frame = ctk.CTkFrame(root)
+    top_frame.pack(pady=10, padx=10, fill="x")
 
-    # Connect/Disconnect button (toggle behavior)
-    global connect_button
-    connect_button = ctk.CTkButton(
-        window,
-        text="Connect",
-        command=toggle_connection,
-        width=200,
-        height=10,
-        corner_radius=10,
-        fg_color="#4CAF50",  # Green for connect
-        hover_color="#45a63c",  # Slightly darker green for hover
-        text_color="white"
-    )
-    connect_button.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+    frame = ctk.CTkFrame(root)
+    frame.pack(pady=10, padx=10, fill="both", expand=True)
 
-    # Relay control buttons
-    button_a_on = ctk.CTkButton(
-        window, 
-        text="Relay A ON", 
-        command=relayA_on, 
-        width=180, 
-        height=50, 
-        corner_radius=10, 
-        fg_color="#57d843", 
-        hover_color="#45a63c",
-        text_color="white"  # Set text color to white
-    )
-    button_a_on.grid(row=2, column=0, padx=20, pady=20, sticky="nsew")
+    # Dropdown for COM port selection
+    available_ports = [port.device for port in serial.tools.list_ports.comports()]
+    com_port_var = ctk.StringVar(value="Select COM Port")
+    com_port_dropdown = ctk.CTkOptionMenu(top_frame, variable=com_port_var, values=available_ports)
+    com_port_dropdown.pack(side="left", padx=5, pady=5)
 
-    button_a_off = ctk.CTkButton(
-        window, 
-        text="Relay A OFF", 
-        command=relayA_off, 
-        width=180, 
-        height=50, 
-        corner_radius=10, 
-        fg_color="#d84343", 
-        hover_color="#a83838",
-        text_color="white"  # Set text color to white
-    )
-    button_a_off.grid(row=2, column=1, padx=20, pady=20, sticky="nsew")
+    # Connect/Disconnect button
+    connection_button = ctk.CTkButton(top_frame, text="Connect", fg_color="#3a7ebf", 
+                                      command=lambda: toggle_connection(com_port_var.get(), connection_button))
+    connection_button.pack(side="left", padx=5, pady=5)
 
-    button_b_on = ctk.CTkButton(
-        window, 
-        text="Relay B ON", 
-        command=relayB_on, 
-        width=180, 
-        height=50, 
-        corner_radius=10, 
-        fg_color="#57d843", 
-        hover_color="#45a63c",
-        text_color="white"  # Set text color to white
-    )
-    button_b_on.grid(row=3, column=0, padx=20, pady=20, sticky="nsew")
+    # Define button colors
+    on_button_color = ("#7a312e", "#934949")  # Light green, darker green on hover
+    off_button_color = ("#337a2e", "#4e9349")  # Light red, darker red on hover
 
-    button_b_off = ctk.CTkButton(
-        window, 
-        text="Relay B OFF", 
-        command=relayB_off, 
-        width=180, 
-        height=50, 
-        corner_radius=10, 
-        fg_color="#d84343", 
-        hover_color="#a83838",
-        text_color="white"  # Set text color to white
-    )
-    button_b_off.grid(row=3, column=1, padx=20, pady=20, sticky="nsew")
+    # Create buttons for controlling the relays and arrange them in a grid to fill the window
+    relay_a_on_button = ctk.CTkButton(frame, text="Relay A ON", command=relay_a_on, 
+                                      fg_color=on_button_color[0], hover_color=on_button_color[1])
+    relay_a_on_button.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-    # Configure grid to ensure buttons fill up their corner
-    window.grid_columnconfigure(0, weight=1)
-    window.grid_columnconfigure(1, weight=1)
-    window.grid_rowconfigure(0, weight=1)
-    window.grid_rowconfigure(1, weight=1)
-    window.grid_rowconfigure(2, weight=1)
-    window.grid_rowconfigure(3, weight=1)
+    relay_a_off_button = ctk.CTkButton(frame, text="Relay A OFF", command=relay_a_off, 
+                                       fg_color=off_button_color[0], hover_color=off_button_color[1])
+    relay_a_off_button.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
 
-    # Start the event loop
-    window.mainloop()
+    relay_b_on_button = ctk.CTkButton(frame, text="Relay B ON", command=relay_b_on, 
+                                      fg_color=on_button_color[0], hover_color=on_button_color[1])
+    relay_b_on_button.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
 
-# Main function
-if __name__ == '__main__':
+    relay_b_off_button = ctk.CTkButton(frame, text="Relay B OFF", command=relay_b_off, 
+                                       fg_color=off_button_color[0], hover_color=off_button_color[1])
+    relay_b_off_button.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
+
+    # Configure grid weights to make buttons fill the frame
+    frame.grid_rowconfigure(0, weight=1)
+    frame.grid_rowconfigure(1, weight=1)
+    frame.grid_columnconfigure(0, weight=1)
+    frame.grid_columnconfigure(1, weight=1)
+
+    # Start the GUI main loop
+    root.mainloop()
+
+# Run the GUI application
+if __name__ == "__main__":
     create_gui()
